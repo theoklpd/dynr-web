@@ -1,0 +1,18 @@
+This repository contains the sources for building one of 3 ubuntu deb packages 
+that together make up the dynamic router lite project (DynrLite-II).
+
+The DynrLite-II project allows placing a so called dynamic router between a lan
+that contains workstations and a lan that contains internet gateways. The dynamic 
+router has a simple web interface that lets the users on the workstations pick
+or switch what gateway they want to use. 
+
+The dynr-web package provides a trivial web interface for the DynrLite-II system..
+The web interface is written in Python and uses the Django framework at its its core.
+
+Other components of the DynrLite-II project are dynr-pbrouting (A policy based routing core)
+and dynr-dns (A policy based dns forwarding daemon),
+
+All DynrLite-II packages are distributed by the dutch national police agency (KLPD) under
+the LGPL open source software licence.
+
+NOTE: At this moment this repository is still just a placeholder.
