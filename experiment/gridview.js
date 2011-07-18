@@ -9,19 +9,21 @@ function displayGatewayState(name,num,groupaccess,otheraccess,selected,groupcoun
   context.fillStyle =outercollor;
   context.fillRect(0,0,celsize,celsize);
   peerscolor="#bbbbbb";
-  if (groupcount > 0) {
-     peerscolor="#ffff00";
-     if (nongroupcount > 0) {
+  if (groupaccess === true ) {
+    if (groupcount > 0) {
+       peerscolor="#ffff00";
+       if (nongroupcount > 0) {
         peerscolor="#fe9a2e";
-     } else {
-       if ((groupcount === 1) && (selected == true)) {
+       } else {
+         if ((groupcount === 1) && (selected == true)) {
           peerscolor="#58daf5";
+         }
        }
-     }
-  } else {
-     if ((groupaccess === true ) && (nongroupcount > 0)) {
-       peerscolor="f781d8";
-     }
+    } else {
+       if (nongroupcount > 0) {
+         peerscolor="#ff8080";
+       }
+    }
   }
   context.fillStyle=peerscolor;
   context.fillRect(5,5,celsize-10,celsize-10);
@@ -51,7 +53,7 @@ function displayGatewayState(name,num,groupaccess,otheraccess,selected,groupcoun
     context.fillStyle="green";
     context.font = "bold 70px sans-serif";
     if (groupcount > 9) {
-       context.fillText(groupcount,celsize - 80,celsize-15);
+       context.fillText(groupcount,celsize - 100,celsize-15);
     } else {
        context.fillText(groupcount,celsize - 60,celsize-15);
     }
