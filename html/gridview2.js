@@ -104,7 +104,7 @@ function selectGateway(i) {
   gateways[i-1].waiting=true;
   displayGatewayState(gateways[i-1]);
   if (receiveReq.readyState == 4 || receiveReq.readyState == 0) {
-                receiveReq.open("PUT", 'http://localhost/set?gw=' + i , true);
+                receiveReq.open("PUT", '/set?gw=' + i , true);
                 receiveReq.onreadystatechange = handleUpdateDone;
                 receiveReq.send(null);
   }
@@ -282,7 +282,7 @@ function handleGatewaysStatus() {
 
 function getGatewaysStatus() {
 	if (receiveReq.readyState == 4 || receiveReq.readyState == 0) {
-		receiveReq.open("GET", 'http://localhost/status', true);
+		receiveReq.open("GET", '/status', true);
 		receiveReq.onreadystatechange = handleGatewaysStatus; 
 		receiveReq.send(null);
 	}			
