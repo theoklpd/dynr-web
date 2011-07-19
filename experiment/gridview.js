@@ -103,20 +103,19 @@ function getCellSize(cels) {
   return 80;
 }
 
-function getRowCount(celsize) {
-  var yrange=window.innerHeight;
-  return Math.floor(yrange/celsize);
-}
-
 function getColCount(celsize) {
   var xrange=window.innerWidth;
   return Math.floor(xrange / celsize);
 }
 
+function getRowCount(cels,colcount) {
+  return Math.ceil(cels/colcount);
+}
+
 function initScreen(cels) {
   var celsize=getCellSize(cels);
-  var rowcount = getRowCount(celsize);
   var colcount = getColCount(celsize);
+  var rowcount = getRowCount(cels,colcount);
   var xoffset = Math.floor((window.innerWidth - (celsize * colcount))/2);
   var yoffset = Math.floor((window.innerHeight - (celsize * rowcount))/2);
   var row=0; 
