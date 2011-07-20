@@ -1,9 +1,12 @@
-var gateways = [];
-var receiveReq = new XMLHttpRequest();
-var receiveReq2 = new XMLHttpRequest();
-var myTimer;
-var reqseq=0;
-function displayGatewayState(gateway) {
+var gridview = {
+    "gateways" : [],
+    "receiveReq" : new XMLHttpRequest(),
+    "receiveReq2" : new XMLHttpRequest(),
+    "myTimer" : "",
+    "reqseq" : 0
+};
+
+gridview.displayGatewayState = function (gateway) {
     'use strict';
     var name = gateway.name,
         num = gateway.number,
@@ -59,6 +62,7 @@ function displayGatewayState(gateway) {
     if (groupaccess === true) {
         context.fillStyle = "#000000";
     }
+
     context.font = "bold 16px sans-serif";
     context.fillText(name, 15, 26);
     context.fillStyle = "#aaaaaa";
@@ -88,9 +92,9 @@ function displayGatewayState(gateway) {
             context.drawImage(img2, celsize - 50, celsize -  50, 30, 50);
         }
     }
-}
+};
 
-function handleGatewaysStatus() {
+gridview.handleGatewaysStatus = function () {
     'use strict';
     var somethingchanged = false,
         response,
@@ -99,12 +103,12 @@ function handleGatewaysStatus() {
         gatewaynum,
         gateway,
         updated = false;
-    if (receiveReq.readyState === 4) { 
-        response = eval("(" + receiveReq.responseText + ")");
-        for (i = 0; i < response.length; i = i + 1) { 
-            gatewaystatus = response[i]; 
-            gatewaynum = gatewaystatus.id; 
-            gateway = gateways[gatewaynum - 1];
+    if (this.receiveReq.readyState === 4) {
+        response = JSON.parse(this.receiveReq.responseText);
+        for (i = 0; i < response.length; i = i + 1) {
+            gatewaystatus = response[i];
+            gatewaynum = gatewaystatus.id;
+            gateway = this.gateways[gatewaynum - 1];
             updated = false;
             if (gatewaystatus.selected !== gateway.selected) {
                 gateway.selected = gatewaystatus.selected;
@@ -122,51 +126,53 @@ function handleGatewaysStatus() {
                 gateway.waiting = false;
                 updated = true;
             }
+
             if (updated === true) {
                 somethingchanged = true;
-                displayGatewayState(gateways[gatewaynum - 1]);
+                this.displayGatewayState(this.gateways[gatewaynum - 1]);
             }
         }
-        myTimer = setTimeout(getGatewaysStatus, 2000);
+        this.myTimer = setTimeout(function () {gridview.getGatewaysStatus(); }, 2000);
     }
-}
+};
 
-function getGatewaysStatus() {
+gridview.getGatewaysStatus = function () {
     'use strict';
-    if (receiveReq.readyState === 4 || receiveReq.readyState === 0) {
-        reqseq = reqseq + 1;
-        receiveReq.open("GET", '/status?' + reqseq , true);
-        receiveReq.onreadystatechange = handleGatewaysStatus;
-        receiveReq.send(null);
+    if (this.receiveReq.readyState === 4 || this.receiveReq.readyState === 0) {
+        this.reqseq = this.reqseq + 1;
+        this.receiveReq.open("GET", '/status?' + this.reqseq, true);
+        this.receiveReq.onreadystatechange = function () {gridview.handleGatewaysStatus(); };
+        this.receiveReq.send(null);
     }
-}
+};
 
-function handleUpdateDone() {
+gridview.handleUpdateDone = function () {
     'use strict';
-    if (receiveReq2.readyState === 4) {
-        myTimer = setTimeout(getGatewaysStatus, 2000);
+    if (this.receiveReq2.readyState === 4) {
+        this.myTimer = setTimeout(function () {gridview.getGatewaysStatus(); }, 2000);
     }
-}
+};
 
-function selectGateway(i) {
+gridview.selectGateway = function (i) {
     'use strict';
-    clearTimeout(myTimer);
-    gateways[i - 1].waiting = true;
-    displayGatewayState(gateways[i - 1]);
-    if (receiveReq2.readyState === 4 || receiveReq2.readyState === 0) {
-        receiveReq2.open("PUT", '/set?gw=' + i, true);
-        receiveReq2.onreadystatechange = handleUpdateDone;
-        receiveReq2.send(null);
+    clearTimeout(this.myTimer);
+    this.gateways[i - 1].waiting = true;
+    this.displayGatewayState(this.gateways[i - 1]);
+    if (this.receiveReq2.readyState === 4 || this.receiveReq2.readyState === 0) {
+        this.receiveReq2.open("PUT", '/set?gw=' + i, true);
+        this.receiveReq2.onreadystatechange = function () { gridview.handleUpdateDone(); };
+        this.receiveReq2.send(null);
     }
-}
+};
 
-function addCanvas(x, y, s, i) { 
+gridview.addCanvas = function (x, y, s, i) {
     'use strict';
     var newdiv = document.createElement('div'),
         style = "position: absolute; top: " + y + "px; left: " + x + "px;",
         divid = "div" + i,
         newcanvas = document.createElement('canvas'),
-        canvasid = "canvas" + i;
+        canvasid = "canvas" + i,
+        gv = this;
     newdiv.setAttribute('style', style);
     newdiv.setAttribute('id', divid);
     canvasid = "canvas" + i;
@@ -175,12 +181,12 @@ function addCanvas(x, y, s, i) {
     newcanvas.setAttribute('height', s);
     newdiv.appendChild(newcanvas);
     document.getElementById('docbody').appendChild(newdiv);
-    newcanvas.addEventListener("click", function () {selectGateway(i); }, false);
-}
+    newcanvas.addEventListener("click", function () {gv.selectGateway(i); }, false);
+}; //200
 
-function updateCanvas(x, y, s, i) {
+gridview.updateCanvas = function (x, y, s, i) {
     'use strict';
-    var divid = "div" + i, 
+    var divid = "div" + i,
         style = "position: absolute; top: " + y + "px; left: " + x + "px;",
         canvasdiv = document.getElementById(divid),
         canvasid = "canvas" + i,
@@ -188,49 +194,48 @@ function updateCanvas(x, y, s, i) {
     canvasdiv.setAttribute('style', style);
     thecanvas.setAttribute('width', s);
     thecanvas.setAttribute('height', s);
-}
+};
 
 
-function maxCells(xrange, yrange, celsize) {
+gridview.maxCells = function (xrange, yrange, celsize) {
     'use strict';
     var xcels = Math.floor(xrange / celsize),
         ycels = Math.floor(yrange / celsize),
         rval =  xcels * ycels;
     return rval;
-}
+};
 
-function getCellSize(cels) {
+gridview.getCellSize = function (cels) {
     'use strict'; //200
     var xrange = window.innerWidth,
         yrange = window.innerHeight,
         celsize = Math.floor(Math.sqrt(xrange * yrange / cels));
     while (celsize > 80) {
-        if (maxCells(xrange, yrange, celsize) >= cels) {
+        if (this.maxCells(xrange, yrange, celsize) >= cels) {
             return celsize - 4;
         }
         celsize = celsize - 1;
     }
     return 80;
-}
+};
 
-function getColCount(celsize) {
+gridview.getColCount = function (celsize) {
     'use strict';
     var xrange = window.innerWidth;
     return Math.floor(xrange / celsize);
-}
+};
 
-function getRowCount(cels, colcount) {
+gridview.getRowCount = function (cels, colcount) {
     'use strict';
     return Math.ceil(cels / colcount);
-}
+};
 
-
-function initScreen(gateways) {
+gridview.initScreen = function () {
     'use strict';
-    var cels = gateways.length,
-        celsize = getCellSize(cels),
-        colcount = getColCount(celsize),
-        rowcount = getRowCount(cels, colcount),
+    var cels = this.gateways.length,
+        celsize = this.getCellSize(cels),
+        colcount = this.getColCount(celsize),
+        rowcount = this.getRowCount(cels, colcount),
         xoffset = Math.floor((window.innerWidth - (celsize * colcount)) / 2),
         yoffset = Math.floor((window.innerHeight - (celsize * rowcount)) / 2),
         row = 0,
@@ -240,42 +245,19 @@ function initScreen(gateways) {
         for (col = 0; col < colcount; col = col + 1) {
             canvasno = canvasno + 1;
             if (canvasno <= cels) {
-                addCanvas(col * celsize + xoffset, row * celsize + yoffset, celsize, canvasno);
-                displayGatewayState(gateways[canvasno - 1]);
+                this.addCanvas(col * celsize + xoffset, row * celsize + yoffset, celsize, canvasno);
+                this.displayGatewayState(this.gateways[canvasno - 1]);
             }
         }
     }
     return celsize;
-}
+};
 
-function updateScreen(gateways) {
-    'use strict';
-    var cels = gateways.length,
-        celsize = getCellSize(cels),
-        colcount = getColCount(celsize),
-        rowcount = getRowCount(cels, colcount),
-        xoffset = Math.floor((window.innerWidth - (celsize * colcount)) / 2),
-        yoffset = Math.floor((window.innerHeight - (celsize * rowcount)) / 2),
-        row = 0,
-        col = 0,
-        canvasno = 0;
-    for (row = 0; row < rowcount; row = row + 1) {
-        for (col = 0; col < colcount; col = col + 1) {
-            canvasno = canvasno + 1;
-            if (canvasno <= cels) {
-                gateways[canvasno - 1].celsize = celsize;
-                updateCanvas(col * celsize + xoffset, row * celsize + yoffset, celsize, canvasno);
-                displayGatewayState(gateways[canvasno - 1]);
-            }
-        }
-    }
-    return celsize;
-}
 
-function parseNoJsSection(nojsdiv) {
+gridview.parseNoJsSection = function (nojsdiv) {
     'use strict';
     var images = nojsdiv.getElementsByTagName('img'),
-        celsize = getCellSize(images.length - 1),
+        celsize = this.getCellSize(images.length - 1),
         gatewayno = 0,
         image,
         gatewayobj,
@@ -303,25 +285,47 @@ function parseNoJsSection(nojsdiv) {
         if (images[i].getAttribute('otheraccess') === 'true') {
             gatewayobj.otheraccess = true;
         }
-        gateways.push(gatewayobj);
+        this.gateways.push(gatewayobj);
     }
-    return gateways;
-}
+    return;
+};
+
+gridview.updateScreen = function () {
+    'use strict';
+    var cels = this.gateways.length,
+        celsize = this.getCellSize(cels),
+        colcount = this.getColCount(celsize),
+        rowcount = this.getRowCount(cels, colcount),
+        xoffset = Math.floor((window.innerWidth - (celsize * colcount)) / 2),
+        yoffset = Math.floor((window.innerHeight - (celsize * rowcount)) / 2),
+        row = 0,
+        col = 0,
+        canvasno = 0;
+    for (row = 0; row < rowcount; row = row + 1) {
+        for (col = 0; col < colcount; col = col + 1) {
+            canvasno = canvasno + 1;
+            if (canvasno <= cels) {
+                this.gateways[canvasno - 1].celsize = celsize;
+                this.updateCanvas(col * celsize + xoffset, row * celsize + yoffset, celsize, canvasno);
+                this.displayGatewayState(this.gateways[canvasno - 1]);
+            }
+        }
+    }
+    return celsize;
+};
 
 window.onload = function () {
     'use strict';
     var nojsdiv = document.getElementById('nojs');
-    gateways = parseNoJsSection(nojsdiv);
-    initScreen(gateways);
+    gridview.parseNoJsSection(nojsdiv);
+    gridview.initScreen();
     document.getElementById('docbody').removeChild(nojsdiv);
-    clearTimeout(myTimer);
-    getGatewaysStatus();
+    clearTimeout(gridview.myTimer);
+    gridview.getGatewaysStatus();
 };
 
 window.onresize = function () {
     'use strict';
-    updateScreen(gateways);
+    gridview.updateScreen();
 };
-
-
 
