@@ -11,17 +11,7 @@ function gridViewApp(doc, win, settimeout, cleartimeout, newimg, newreq) {
         "reqseq" : 0,
         //This method draws a canvas according to its current gateway state.
         "displayGatewayState" : function (gateway) {
-            var name = gateway.name,
-                num = gateway.number,
-                groupaccess = gateway.groupaccess,
-                otheraccess = gateway.otheraccess,
-                selected = gateway.selected,
-                groupcount = gateway.groupcount,
-                nongroupcount = gateway.othercount,
-                celsize = gateway.celsize,
-                waiting = gateway.waiting,
-                image = gateway.image,
-                canvasname = "canvas" + num,
+            var canvasname = "canvas" + gateway.number,
                 canvas = doc.getElementById(canvasname),
                 context = canvas.getContext("2d"),
                 outercollor = "#aaaaaa",
@@ -30,39 +20,39 @@ function gridViewApp(doc, win, settimeout, cleartimeout, newimg, newreq) {
                 img = newimg(),
                 img2 = newimg();
             //The selected gateway gets a blue outer border rather than the default grey (window collor) outer border.
-            if (selected === true) {
+            if (gateway.selected === true) {
                 outercollor = "#2e2efe";
             }
             context.fillStyle = outercollor;
-            context.fillRect(0, 0, celsize, celsize);
+            context.fillRect(0, 0, gateway.celsize, gateway.celsize);
             //The inner border color is determined by the types of people that are using the gateway, and by
             //the fact that we may use this gateway. Gateways we can't select will have a light gray outer border.
             //Gateways that we can use that have no active users also have a light gray outer border.
-            if (groupaccess === true) {
-                if (groupcount > 0) {
+            if (gateway.groupaccess === true) {
+                if (gateway.groupcount > 0) {
                     //If there are only users of our group that currently use this gateway, the inner border is yellow.
                     peerscolor = "#ffff00";
-                    if (nongroupcount > 0) {
+                    if (gateway.othercount > 0) {
                         //If currenly this gateway has users of both our group and of other groups, the inner border is orange (yellow + redish)
                         peerscolor = "#fe9a2e";
                     } else {
-                        if ((groupcount === 1) && (selected === true)) {
+                        if ((gateway.groupcount === 1) && (gateway.selected === true)) {
                             //If we are the only one who selected this gateway, the inner border is light blue.
                             peerscolor = "#58daf5";
                         }
                     }
                 } else {
-                    if (nongroupcount > 0) {
+                    if (gateway.othercount > 0) {
                         //If the gateway currenly has only users from other groups, the inner border is redish.
                         peerscolor = "#ff8080";
                     }
                 }
             }
             context.fillStyle = peerscolor;
-            context.fillRect(5, 5, celsize - 10, celsize - 10);
+            context.fillRect(5, 5, gateway.celsize - 10, gateway.celsize - 10);
             //Any gateway that can't be selected has a grey fill collor.
-            if (groupaccess === true) {
-                if (otheraccess === true) {
+            if (gateway.groupaccess === true) {
+                if (gateway.otheraccess === true) {
                     //If we share access to this gateway with other groups, than the fill collor is pink.
                     fillcolor = "#f6cef6";
                 } else {
@@ -71,45 +61,45 @@ function gridViewApp(doc, win, settimeout, cleartimeout, newimg, newreq) {
                 }
             }
             context.fillStyle = fillcolor;
-            context.fillRect(10, 10, celsize - 20, celsize - 20);
+            context.fillRect(10, 10, gateway.celsize - 20, gateway.celsize - 20);
             //Gateway names are written in black for gateways we can pick, and in grey for gateways we can't pick.
             context.fillStyle = "#aaaaaa";
-            if (groupaccess === true) {
+            if (gateway.groupaccess === true) {
                 context.fillStyle = "#000000";
             }
             context.font = "bold 16px sans-serif";
-            context.fillText(name, 15, 26);
+            context.fillText(gateway.name, 15, 26);
             //Only for gateways we can pick will we show the icon.
-            if (groupaccess === true) {
-                img.src = image;
-                context.drawImage(img, 15, 15, celsize - 30, celsize - 30);
+            if (gateway.groupaccess === true) {
+                img.src = gateway.image;
+                context.drawImage(img, 15, 15, gateway.celsize - 30, gateway.celsize - 30);
             }
             //For gateways with people from our group on it, display the number of users from our group in large green numbers.
-            if (groupcount > 0) {
+            if (gateway.groupcount > 0) {
                 context.fillStyle = "green";
                 context.font = "bold 70px sans-serif";
-                if (groupcount > 9) {
-                    context.fillText(groupcount, celsize - 100, celsize - 15);
+                if (gateway.groupcount > 9) {
+                    context.fillText(gateway.groupcount, gateway.celsize - 100, gateway.celsize - 15);
                 } else {
-                    context.fillText(groupcount, celsize - 60, celsize - 15);
+                    context.fillText(gateway.groupcount, gateway.celsize - 60, gateway.celsize - 15);
                 }
             }
             //For gateways with people from other groups on it, display the number of users from this group that are currently on it.
             //If we are allowed to pick this line, using red numbers, otherwise in grey numbers. These numbers are a bit smaller than
             //those for indicating people from our own group.
             context.fillStyle = "#aaaaaa";
-            if (nongroupcount > 0) {
-                if (groupaccess === true) {
+            if (gateway.othercount > 0) {
+                if (gateway.groupaccess === true) {
                     context.fillStyle = "red";
                 }
                 context.font = "bold 40px sans-serif";
-                context.fillText(nongroupcount, 15, celsize - 15);
+                context.fillText(gateway.othercount, 15, gateway.celsize - 15);
             }
             //If the state of the gateway has been marked as waiting for a new status, display an hourglass with this gateway.
-            if (waiting === true) {
-                if (groupaccess === true) {
+            if (gateway.waiting === true) {
+                if (gateway.groupaccess === true) {
                     img2.src = "wait.png";
-                    context.drawImage(img2, celsize - 50, celsize -  50, 30, 50);
+                    context.drawImage(img2, gateway.celsize - 50, gateway.celsize -  50, 30, 50);
                 }
             }
         },
