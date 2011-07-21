@@ -4,4 +4,6 @@
 * Create a 'status' (GET) service producing the json array of gateway status. 
 * Create an 'update' (PUT) service for requesting the server to set the gateway for the requesting IP.
 * Code review for the python code.
-* Integration testing with dynr-bbrouting and dynr-pbdns
+* ubuntu packaging.
+* Test package dependencies against clean ubuntu install.
+* Integration testing with dynr-bbrouting and dynr-pbdns on virtualbox environment.
