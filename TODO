@@ -1,0 +1,7 @@
+* Code review for the javascript App.
+* Figure out if we need a seperate state server when using drango for the server side.
+* Complete the djando stuff for the config parser (index.html)
+* Create a 'status' (GET) service producing the json array of gateway status. 
+* Create an 'update' (PUT) service for requesting the server to set the gateway for the requesting IP.
+* Code review for the python code.
+* Integration testing with dynr-bbrouting and dynr-pbdns
