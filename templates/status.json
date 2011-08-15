@@ -1,0 +1,10 @@
+[
+ {% for gateway in gateway_list %}
+   {
+     "id" : {{ gateway.id }}
+     "groupcount" : {{ gateway.groupcount }}
+     "othercount" : {{ gateway.othercount }}
+     "selected" : {{ gateway.selected }}
+   }{% if not forloop.last %},{% endif %}
+ {% endfor %}
+]
