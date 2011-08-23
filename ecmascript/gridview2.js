@@ -150,7 +150,7 @@ function gridViewApp(doc, win, settimeout, cleartimeout, newimg, newreq) {
             var gv = this;
             if (this.receiveReq.readyState === 4 || this.receiveReq.readyState === 0) {
                 this.reqseq = this.reqseq + 1; //Add a sequence number to avoid caching. This is lame, whats up with this?
-                this.receiveReq.open("GET", '/status?' + this.reqseq, true);
+                this.receiveReq.open("GET", '/routerstatus?' + this.reqseq, true);
                 this.receiveReq.onreadystatechange = function () {gv.handleGatewaysStatus(); }; //Set a callback for the response.
                 this.receiveReq.send(null);
             }
@@ -172,7 +172,7 @@ function gridViewApp(doc, win, settimeout, cleartimeout, newimg, newreq) {
             this.gateways[i - 1].waiting = true; //Set the status of this gateway to 'waiting' untill our next update of the status.
             this.displayGatewayState(this.gateways[i - 1]); //Display our gateway as waiting (with the litle ourglass).
             if (this.receiveReq2.readyState === 4 || this.receiveReq2.readyState === 0) {
-                this.receiveReq2.open("PUT", '/set?gw=' + i, true); //Create a new AJAJ request for updating our gateway on the server.
+                this.receiveReq2.open("PUT", '/setgateway?gw=' + i, true); //Create a new AJAJ request for updating our gateway on the server.
                 this.receiveReq2.onreadystatechange = function () { gv.handleUpdateDone(); }; //Bind receiving the response ti our handleUpdateDone method.
                 this.receiveReq2.send(null);
             }
@@ -291,10 +291,10 @@ function gridViewApp(doc, win, settimeout, cleartimeout, newimg, newreq) {
                 //Copy the piggybacked gateway info from the image tag.
                 gatewayobj.name = images[i].getAttribute('name');
                 gatewayobj.image = images[i].getAttribute('src');
-                if (images[i].getAttribute('groupaccess') === 'true') {
+                if (images[i].getAttribute('groupaccess') === 'True') {
                     gatewayobj.groupaccess = true;
                 }
-                if (images[i].getAttribute('otheraccess') === 'true') {
+                if (images[i].getAttribute('otheraccess') === 'True') {
                     gatewayobj.otheraccess = true;
                 }
                 //Add the new gateway to our gateways array.
