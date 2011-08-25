@@ -64,18 +64,19 @@ class StateProxy:
         self.routerstate=routerstate
         self.clientip=clientip
         self.gatewaynum=gatewaynum
+        self.routerstate.startUpdate(clientip)
     def _partialSuccess(self):
         if (self.dnscommandstate > 0) and (self.routingcommandstate > 0):
             if (self.dnscommandstate > 1) or (self.routingcommandstate > 1):
-                print "Partial failure: ",self.startedstate,self.routingcommandstate,self.dnscommandstate 
+                self.routerstate.brokenUpdate(clientip)
             else:
-                print "Full success"
+                self.routerstate.completeUpdate(clientip,gatewaynum)
     def _partialFailure(self):
         if (self.dnscommandstate > 0) and (self.routingcommandstate > 0):
             if (self.dnscommandstate > 1) and (self.routingcommandstate > 1):
-                print "Full failure."
+                self.routerstate.failedUpdate(clientip)
             else:
-                print "Partial failure"
+                self.routerstate.brokenUpdate(clientip)
     def StartedDnsClear(self):
         self.startedstate=1
     def DnsClearResult(self,res):
@@ -114,11 +115,66 @@ class StateProxy:
         self.routingcommandstate=3
         self._partialFailure()
 
-class DynamicRouterState: #TODO
+#Not done by far
+class DynamicRouterState:
     def __init__(self):
-        self.requeststate={}
+        self.gatewayusers={}
+        self.workstationinfo={}
+        self.updatesinprogess={}
     def getStateProxy(self,clientip,gatewaynum):
         return StateProxy(self,clientip,gatewaynum)
+    def startUpdate(self,clientip,gatewaynum):
+        if self.updatesinprogess.has_key(clientip):
+           self.updatesinprogess[clientip] = self.updatesinprogess[clientip] + 1
+        else:
+           self.updatesinprogess[clientip] = 1 
+        if self.workstationinfo.has_key(clientip):
+            wsinfo=self.workstationinfo[clientip]
+            wsinfo["waiting"]=True
+        else:
+            self.workstationinfo[clientip] = {}
+            self.workstationinfo[clientip]["waiting"]=True
+            self.workstationinfo[clientip]["valid"]=True
+            self.workstationinfo[clientip]["gateway"]=0
+            self.workstationinfo[clientip]["futuregw"]=[]
+            self.workstationinfo[clientip]["futuregw"].push_back(gatewaynum)
+        #We already let this workstation count in the newly selected gateway, but also still in the old one.
+        if self.gatewayusers.has_key(gatewaynum):
+            self.gatewayusers[gatewaynum] = self.gatewayusers[gatewaynum] +1
+        else:
+            self.gatewayusers[gatewaynum] = 1
+    def failedUpdate(self,clientip,gatewaynum):
+        self.updatesinprogess[clientip] = self.updatesinprogess[clientip] -1
+        if self.updatesinprogess[clientip] == 0:
+            if self.updatesinprogess[clientip] == 0:
+                self.workstationinfo[clientip]["waiting"]=False
+                self.workstationinfo[clientip]["futuregw"]=[]
+        self.gatewayusers[gatewaynum] = self.gatewayusers[gatewaynum] -1
+    def brokenUpdate(self,clientip,gatewaynum):
+        #Roll back the startUpdate stuff
+        self.updatesinprogess[clientip] = self.updatesinprogess[clientip] -1
+        self.gatewayusers[gatewaynum] = self.gatewayusers[gatewaynum] -1
+        #Remove this workstation from the old gateway too
+        oldgw = self.workstationinfo[clientip]["gateway"]
+        self.gatewayusers[oldgw] = self.gatewayusers[oldgw] -1
+        #Update the workstation info
+        self.workstationinfo[clientip]["gateway"] = 0
+        self.workstationinfo[clientip]["valid"] = False
+        self.workstationinfo[clientip]["waiting"]=False
+        if self.updatesinprogess[clientip] == 0:
+            self.workstationinfo[clientip]["futuregw"]=[]
+    def completeUpdate(self,clientip,gatewaynum):
+        self.updatesinprogess[clientip] = self.updatesinprogess[clientip] -1
+        #Remove this workstation from the old gateway
+        oldgw = self.workstationinfo[clientip]["gateway"]
+        self.gatewayusers[oldgw] = self.gatewayusers[oldgw] -1
+        if self.updatesinprogess[clientip] == 0:
+            self.workstationinfo[clientip]["waiting"]=False
+            self.workstationinfo[clientip]["futuregw"]=[]
+        else:
+            
+        self.gatewayusers[oldgw] = self.gatewayusers[oldgw] -1
+        
     def __call__(self):
         print "DynamicRouterState invoked"
         return ""
