@@ -1,6 +1,6 @@
 * Code review for the javascript App.
-* Create the serverside twisted stuff (python)
+* Create the serverside twisted stuff (python) (RM)
 * Code review for the python code.
-* ubuntu packaging.
-* Test package dependencies against clean ubuntu install.
-* Integration testing with dynr-bbrouting and dynr-pbdns on virtualbox environment.
+* ubuntu packaging. (RM)
+* Test package dependencies against clean ubuntu install. (RM)
+* Integration testing with dynr-bbrouting and dynr-pbdns on virtualbox environment (RM)
