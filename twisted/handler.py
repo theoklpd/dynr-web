@@ -59,78 +59,57 @@ class DynamicRouterConfig:
 #Helper proxy for keeping track of dbus server invocation results and combining these.                       
 class StateProxy:
     def __init__(self,routerstate,clientip,gatewaynum,httpserverip):
-        self.routingcommandstate=0 # 0 == not started ; 1= started; 2= sucess ; 3 = failure
-        self.dnscommandstate=0
+        self.routingcommandstate=None
+        self.dnscommandstate=None
         self.routerstate=routerstate
         self.clientip=clientip
         self.gatewaynum=gatewaynum
         self.httpserverip=httpserverip
         self.routerstate.startUpdate(clientip,gatewaynum,httpserverip)
     def _partialSuccess(self):
-        #If either request succeeded and both completed we need to forward something.
-        if (self.dnscommandstate > 1) and (self.routingcommandstate > 1):
-            #Test if the other request failed.
-            if (self.dnscommandstate > 2) or (self.routingcommandstate > 2):
-                #If it did we are in a bad state, one request succeeded and the other failed.
+        #If both requests completed than we need to forward something.
+        if (self.dnscommandstate !=  None) and (self.routingcommandstate != None):
+            #Test if both requests succeeded
+            if self.dnscommandstate and self.routingcommandstate:
+                self.routerstate.completeUpdate(self.clientip,self.gatewaynum,self.httpserverip)
+            else:
+                #If the other request failed, than we are in a bad state, one request succeeded and the other failed.
+                self.routerstate.brokenUpdate(clientip,gatewaynum,httpserverip)
+    def _partialFailure(self):
+        #If both requests completed than we need to forward something.
+        if (self.dnscommandstate != None) and (self.routingcommandstate != None ):
+            #Test if the other request succeeded
+            if self.dnscommandstate or self.routingcommandstate:
+                #If the other request succeeded, than we are in a bad state, one request succeeded and the other failed.
                 self.routerstate.brokenUpdate(clientip,gatewaynum,httpserverip)
             else:
-                #Otherwise all is fine and dandy.
-                self.routerstate.completeUpdate(clientip,gatewaynum,httpserverip)
-    def _partialFailure(self):
-        #If either request failed and both completed we need to forward something.
-        if (self.dnscommandstate > 1) and (self.routingcommandstate > 1):
-            #Test if BOTH failed.
-            if (self.dnscommandstate > 2) and (self.routingcommandstate > 2):
                 #If both failed than we are still in the old state and we have just a failed request.
                 self.routerstate.failedUpdate(clientip,gatewaynum,httpserverip)
-            else:
-                #If the other one succeeded than we are in a bad state, one request succeeded and the other failed.
-                self.routerstate.brokenUpdate(clientip,gatewaynum,httpserverip)
-    def StartedDnsClear(self):
-        self.dnscommandstate=1 #Dns command started.
-    def DnsClearResult(self,res):
-        if res:
-            #Positive DNS command result from dbus server.
-            self.dnscommandstate=2
-            self._partialSuccess()
-        else:
-            #Failure indication from dbus server.
-            self.dnscommandstate=3
-            self._partialFailure()
-    def DnsClearError(self,err):
-        #Failure with the dns dbus
-        self.dnscommandstate=3
-        self._partialFailure()
-    def StartedDnsSet(self):
-        self.dnscommandstate=1 #Dns command started.
     def DnsSetResult(self,res):
         if res:
             #Positive DNS command result from dbus server.
-            self.dnscommandstate=2
+            self.dnscommandstate=True
             self._partialSuccess()
         else:
             #Failure indication from dbus server.
-            self.dnscommandstate=3
+            self.dnscommandstate=False
             self._partialFailure()
-    def DnsSetError(self,err):
-        #Failure with the dns dbus
-        self.dnscommandstate=3
-        self._partialFailure()
-        print err
-    def StartedGatewaySet(self):
-        self.routingcommandstate=1 #Pbr command started.
     def GatewaySetResult(self,res):
         if res:
             #Positive PBR command result from dbus server.
-            self.routingcommandstate=2
+            self.routingcommandstate=True
             self._partialSuccess()
         else:
             #Failure indication from dbus server.
-            self.routingcommandstate=3
+            self.routingcommandstate=False
             self._partialFailure()
+    def DnsSetError(self,err):
+        #Failure with the dns dbus
+        self.dnscommandstate=False
+        self._partialFailure()
     def GatewaySetError(self,err):
         #Failure with the PBR dbus 
-        self.routingcommandstate=3
+        self.routingcommandstate=False
         self._partialFailure()
 
 #Not done by far
@@ -205,36 +184,37 @@ class DynamicRouterState:
         print "DynamicRouterState invoked"
         return ""
 
+#Client for the DNS service.
 class DynRDnsDbusClient:
     def __init__(self,bus,parkip):
         self.parkip=parkip
         self.remote_object = bus.get_object("nl.dnpa.pbdns.DaemonManager","/DaemonManager")
     def setGateway(self,clientip,gatewayip,updstate):
-        print "DynRDnsDbusClient::setGateway(" + clientip + "," + gatewayip + ",updstate)"
         if gatewayip ==  self.parkip:
-            updstate.StartedDnsClear()
+            #Invoke clear asynchonously, letting the proxy state object handle the result.
             return self.remote_object.clear(clientip,
                 dbus_interface = "nl.dnpa.pbdns.DaemonManager",
-                reply_handler=updstate.DnsClearResult,
-                error_handler=updstate.DnsClearError)
+                reply_handler=updstate.DnsSetResult,
+                error_handler=updstate.DnsSetError)
         else :
-            updstate.StartedDnsSet()
+            #Invoke clear asynchonously, letting the proxy state object handle the result.
             return self.remote_object.setGateway(clientip,gatewayip,
                 dbus_interface = "nl.dnpa.pbdns.DaemonManager",
                 reply_handler=updstate.DnsSetResult,
                 error_handler=updstate.DnsSetError)
-        
+
+#Client for the routing service.
 class DynRPbrDbusClient:
     def __init__(self,bus):
         self.remote_object = bus.get_object("nl.dnpa.pbr.GatewayManager","/GatewayManager")
     def setGateway(self,clientip,gatewayip,updstate):
-        updstate.StartedGatewaySet()
-        print "DynRPbrDbusClient::setGateway(" + clientip + "," + gatewayip + ",updstate)"
+        #Invoke setGateway asynchonously, letting the proxy state object handle the result.
         return self.remote_object.setGateway(clientip,gatewayip,
             dbus_interface = "nl.dnpa.pbr.GatewayManager",
             reply_handler=updstate.GatewaySetResult,
             error_handler=updstate.GatewaySetError)
 
+#The DbusClient combines a client for both dbus services.
 class DbusClient: 
     def __init__(self,gateways,parkip):
         self.gateways = gateways
@@ -242,13 +222,16 @@ class DbusClient:
         self.routing = DynRDnsDbusClient(bus,parkip)
         self.dns = DynRPbrDbusClient(bus)
     def setGateway(self,clientip,gatewaynum,state,httpserverip):
+        #Only allow setGateway to work on allowed gateways as defined in the config.
         if self.gateways.has_key(str(gatewaynum)):
+            #Get a proxy object for updating the state based on the progresso of both active dbus calls.
             updstate=state.getStateProxy(clientip,gatewaynum,httpserverip)
+            #Look ip the gateway IP by number.
             gwip=self.gateways[gatewaynum]
+            #Start the asynchonous call to the routing dbus service.
             self.routing.setGateway(clientip,gwip,updstate)
+            #Start the asynchonous call to the dns dbus service.
             self.dns.setGateway(clientip,gwip,updstate)
-        else:
-            print gatewaynum + " not part of self.gateways in DbusClient::setGateway"
 
 class DynamicRouterRequestHandler(http.Request):
     def __init__(self,conf,html,state,dbusclient, *args):
@@ -256,6 +239,7 @@ class DynamicRouterRequestHandler(http.Request):
         self.html=html
         self.state=state
         self.dbusclient=dbusclient
+        #Where to find what static file.
         self.files = { "/gridview2.js" : "ecmascript",
             "/wait.png" : "images",
             "/router.png" : "images",
@@ -264,13 +248,13 @@ class DynamicRouterRequestHandler(http.Request):
         http.Request.__init__(self,*args)
     def process(self):
         needredirect=False
-        print self.path
+        #Normaly the client should be addressed by its IP.
         if self.getRequestHostname() == self.getHost().host:
             #Our main application page generated at startup time.
             if self.path == "/gatewaylist":
                 self.setHeader('Content-Type', 'text/html')
                 self.write(self.html)
-            #The dynamic status stuff.
+            #The dynamic ajaxy status stuff.
             elif self.path == "/routerstatus":
                 self.setHeader('Content-Type', 'application/json')
                 self.write(self.state())
@@ -293,8 +277,9 @@ class DynamicRouterRequestHandler(http.Request):
             #Anything else we redirect to our main application page.
             else:
                 needredirect=True
-        #If directed at a host name, redirect to the main application page using the IP address.
+        #If directed at a host name, the client will likely be 'parked'.
         else:
+            #If the client uses a hostname, redirect to the main url.
             needredirect=True
         if needredirect:
             host=self.getHost().host
