@@ -5,6 +5,7 @@
      "groupcount" : {{ gateway.groupcount }}
      "othercount" : {{ gateway.othercount }}
      "selected" : {{ gateway.selected }}
+     "specialstate" : {{ gateway.specialcase }}
    }{% if not forloop.last %},{% endif %}
  {% endfor %}
 ]

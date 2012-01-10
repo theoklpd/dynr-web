@@ -48,13 +48,14 @@ class DynamicRouterConfig:
             num=gateway["tableno"]
             ip=gateway["ip"]
             gwmap[str(num)]=ip
-            print str(num) + " -> " + ip
         return gwmap    
     def getParkIp(self):
         for gateway in self.config["gateways"]:
             name=gateway["name"]
             if name == "parkip":
                 return gateway["ip"]
+    def __getitem__(self,key):
+        return self.config[key]
 
 #Helper proxy for keeping track of dbus server invocation results and combining these.                       
 class StateProxy:
@@ -115,74 +116,140 @@ class StateProxy:
 #Not done by far
 class DynamicRouterState:
     def __init__(self,conf):
-        #self.gatewayusers={}  : instead use self.gateways[gwnum]
-        #self.workstationinfo={} : instead use self.networks[serverip]
         self.updatesinprogess={}
         self.gateways={}
         self.networks={}
         for gateway in conf["gateways"]:
             gwnum=gateway["tableno"]
             self.gateways[gwnum] = {}
+            for clientnet in conf["devices"]["clients"]:
+                serverip=clientnet["ip"]
+                self.gateways[gwnum][serverip] = 0
         for clientnet in conf["devices"]["clients"]:
             serverip=clientnet["ip"]
             self.networks[serverip]={}            
     def getStateProxy(self,clientip,gatewaynum,httpserverip):
         return StateProxy(self,clientip,gatewaynum,httpserverip)
     def startUpdate(self,clientip,gatewaynum,httpserverip):
+        #There can be more than one update in progress, lets count them.
         if self.updatesinprogess.has_key(clientip):
            self.updatesinprogess[clientip] = self.updatesinprogess[clientip] + 1
         else:
            self.updatesinprogess[clientip] = 1 
-        if self.workstationinfo.has_key(clientip):
-            wsinfo=self.workstationinfo[clientip]
+        #Fetch the relevant network with client IPs.
+        network=self.networks[httpserverip]
+        #Check if the client IP is known (since system startup)
+        if network.has_key(clientip):
+            #Client is known, update the record.
+            wsinfo=network[clientip]
+            #Indicate that this workstation is waiting for the operation to complete.
             wsinfo["waiting"]=True
-        else:
-            self.workstationinfo[clientip] = {}
-            self.workstationinfo[clientip]["waiting"]=True
-            self.workstationinfo[clientip]["valid"]=True
-            self.workstationinfo[clientip]["gateway"]=0
-            self.workstationinfo[clientip]["futuregw"]=[]
-            self.workstationinfo[clientip]["futuregw"].push_back(gatewaynum)
+            #Mark the new gateway number as a potential new gateway.
+            network[clientip]["futuregw"][gatewaynum]=True
+        else: 
+            #For an unknown client create a brand new clean record.
+            network[clientip] = {}
+            network[clientip]["waiting"]=True
+            network[clientip]["valid"]=True
+            network[clientip]["gateway"]=None
+            network[clientip]["futuregw"]={}
+            network[clientip]["futuregw"][gatewaynum]=True
         #We already let this workstation count in the newly selected gateway, but also still in the old one.
-        if self.gatewayusers.has_key(gatewaynum):
-            self.gatewayusers[gatewaynum] = self.gatewayusers[gatewaynum] +1
-        else:
-            self.gatewayusers[gatewaynum] = 1
+        self.gateways[gatewaynum][httpserverip] = self.gateways[gatewaynum][httpserverip] + 1
     def failedUpdate(self,clientip,gatewaynum,httpserverip):
+        #The update failed completely (both dns and routing).
+        #First decrement the number of updates in progress.
         self.updatesinprogess[clientip] = self.updatesinprogess[clientip] -1
+        #Fetch the relevant network with client IPs.
+        network=self.networks[httpserverip]
+        #unmark the gateway number as a future one.
+        network[clientip]["futuregw"][gatewaynum]=False
+        #If there are no other updates in progress we are no longer waiting.
         if self.updatesinprogess[clientip] == 0:
-            if self.updatesinprogess[clientip] == 0:
-                self.workstationinfo[clientip]["waiting"]=False
-                self.workstationinfo[clientip]["futuregw"]=[]
-        self.gatewayusers[gatewaynum] = self.gatewayusers[gatewaynum] -1
+            network[clientip]["waiting"]=False
+        #Decrement the count for the failed prospective new gateway.
+        self.gateways[gatewaynum][httpserverip] = self.gateways[gatewaynum][httpserverip] - 1
     def brokenUpdate(self,clientip,gatewaynum,httpserverip):
-        #Roll back the startUpdate stuff
+        #The update failed partially, this is bad.
+        #First decrement the number of updates in progress.
         self.updatesinprogess[clientip] = self.updatesinprogess[clientip] -1
-        self.gatewayusers[gatewaynum] = self.gatewayusers[gatewaynum] -1
-        #Remove this workstation from the old gateway too
-        oldgw = self.workstationinfo[clientip]["gateway"]
-        self.gatewayusers[oldgw] = self.gatewayusers[oldgw] -1
-        #Update the workstation info
-        self.workstationinfo[clientip]["gateway"] = 0
-        self.workstationinfo[clientip]["valid"] = False
-        self.workstationinfo[clientip]["waiting"]=False
+        #Fetch the relevant network with client IPs.
+        network=self.networks[httpserverip]
+        #Let it be known that we are in an invalid state
+        network[clientip]["valid"]=False
+        #unmark the gateway number as a future one.
+        network[clientip]["futuregw"][gatewaynum]=False
+        #If there are no other updates in progress we are no longer waiting.
         if self.updatesinprogess[clientip] == 0:
-            self.workstationinfo[clientip]["futuregw"]=[]
+            network[clientip]["waiting"]=False
+        #Decrement the count for the original IP.
+        if network[clientip]["gateway"] != None:
+            originalgateway=network[clientip]["gateway"]
+            self.gateways[originalgateway][httpserverip] = self.gateways[originalgateway][httpserverip] -1
+        #There now is no original gateway left
+        network[clientip]["gateway"]=None
+        #Decrement the count for the failed prospective new gateway.
+        self.gateways[gatewaynum][httpserverip] = self.gateways[gatewaynum][httpserverip] - 1
     def completeUpdate(self,clientip,gatewaynum,httpserverip):
+        #The update completed succesfully.
+        #First decrement the number of updates in progress.
         self.updatesinprogess[clientip] = self.updatesinprogess[clientip] -1
-        #Remove this workstation from the old gateway
-        oldgw = self.workstationinfo[clientip]["gateway"]
-        self.gatewayusers[oldgw] = self.gatewayusers[oldgw] -1
+        #Fetch the relevant network with client IPs.
+        network=self.networks[httpserverip]
+        #Let it be known that we are now in a valid state.
+        network[clientip]["valid"]=True
+        #unmark the gateway number as a future one.
+        network[clientip]["futuregw"][gatewaynum]=False
+        #If there are no other updates in progress we are no longer waiting.
         if self.updatesinprogess[clientip] == 0:
-            self.workstationinfo[clientip]["waiting"]=False
-            self.workstationinfo[clientip]["futuregw"]=[]
+            network[clientip]["waiting"]=False
+        #Decrement the count for the original IP.
+        if network[clientip]["gateway"] != None:
+            originalgateway=network[clientip]["gateway"]
+            self.gateways[originalgateway][httpserverip] = self.gateways[originalgateway][httpserverip] -1
+        #Set the current gateway
+        network[clientip]["gateway"] = gatewaynum
+    def __call__(self,httpserverip,clientip):
+        network=self.networks[httpserverip]
+        if network.has_key(clientip):
+            wsinfo=network[clientip]
         else:
-            pass #FIXME    
-        self.gatewayusers[oldgw] = self.gatewayusers[oldgw] -1
-        
-    def __call__(self):
-        print "DynamicRouterState invoked"
-        return ""
+            wsinfo = {}
+            wsinfo["waiting"]=False
+            wsinfo["valid"]=True
+            wsinfo["gateway"]=None
+            wsinfo["futuregw"]={}
+        gateways=[]
+        for gwid in self.gateways:
+            gwnew=dict()
+            gwnew["id"]=gwid
+            gwnew["groupcount"]=0
+            gwnew["othercount"]=0
+            gwnew["selected"]=False
+            gwnew["specialstate"]=""
+            gateway=self.gateways[gwid]
+            for serverip in gateway:
+                count=gateway[serverip]
+                if serverip == httpserverip:
+                    gwnew["groupcount"] = gwnew["groupcount"] + count
+                else:
+                    gwnew["othercount"] = gwnew["othercount"] + count
+            if wsinfo["gateway"] == gwid:
+                if wsinfo["valid"]:
+                    if wsinfo["waiting"]:
+                        gwnew["specialstate"] = "waiting"
+                    else:
+                        gwnew["selected"]=True
+                else:
+                    gwnew["specialstate"] = "invalid"
+            if wsinfo["futuregw"].has_key(gwid) and wsinfo["futuregw"]:
+                if not wsinfo["valid"]:
+                    gwnew["specialstate"] = "invalid"
+            else:
+                if wsinfo["waiting"]:
+                    gwnew["specialstate"] = "waiting"
+            gateways.append(gwnew)    
+        return json.dumps(gateways, indent=4)
 
 #Client for the DNS service.
 class DynRDnsDbusClient:
@@ -234,8 +301,7 @@ class DbusClient:
             self.dns.setGateway(clientip,gwip,updstate)
 
 class DynamicRouterRequestHandler(http.Request):
-    def __init__(self,conf,html,state,dbusclient, *args):
-        self.conf=conf
+    def __init__(self,html,state,dbusclient, *args):
         self.html=html
         self.state=state
         self.dbusclient=dbusclient
@@ -262,11 +328,8 @@ class DynamicRouterRequestHandler(http.Request):
             elif self.path == "/setgateway":
                 self.setHeader('Content-Type', 'text/html')
                 clientip=self.getClientIP()
-                print "clientip=" + clientip
                 gatewaynum = self.args["gw"][0]
-                print "gatewaynum=" + gatewaynum
                 self.dbusclient.setGateway(clientip,gatewaynum,self.state,self.getHost().host)
-                print "request made"
                 self.write("<h1>Request made</h1>")
             #Our static files (images and javascript.
             elif self.files.has_key(self.path):
@@ -290,30 +353,28 @@ class DynamicRouterRequestHandler(http.Request):
 
 class DynamicRouterHttp(http.HTTPChannel):
     requestFactory = DynamicRouterRequestHandler
-    def __init__(self,conf,html,state,dbusclient):
+    def __init__(self,html,state,dbusclient):
         http.HTTPChannel.__init__(self)
-        self.conf=conf
         self.html=html
         self.state=state
         self.dbusclient=dbusclient
         http.HTTPChannel.__init__(self)
     def requestFactory(self, *args):
-        return DynamicRouterRequestHandler(self.conf,self.html,self.state,self.dbusclient, *args)
+        return DynamicRouterRequestHandler(self.html,self.state,self.dbusclient, *args)
     
         
 
 class DynamicRouterHttpFactory(http.HTTPFactory):
     protocol = DynamicRouterHttp
-    def __init__(self,conf,ip,dbusclient,state,template):
-        self.conf=conf
+    def __init__(self,conf,ip,dbusclient,state,htmltemplate):
         self.ip=ip
         self.state=state
         self.dbusclient=dbusclient
         gwlist=conf.getGatewayList(ip)
-        self.html=str(template.render({"gateway_list" : gwlist}))
+        self.html=str(htmltemplate.render({"gateway_list" : gwlist}))
         http.HTTPFactory.__init__(self)
     def buildProtocol(self, addr):
-        return DynamicRouterHttp(self.conf,self.html,self.state,self.dbusclient)
+        return DynamicRouterHttp(self.html,self.state,self.dbusclient)
         
 
 if os.system("/usr/bin/pbr-checkconfig.py"):
@@ -322,10 +383,10 @@ conf=DynamicRouterConfig("/etc/pbrouting.json")
 dbusclient=DbusClient(conf.getGatewaysMap(),conf.getParkIp())
 state=DynamicRouterState(conf)
 try:
-    template=jinja2.Environment(loader=jinja2.FileSystemLoader("/var/dynr-web/templates",encoding='utf-8')).get_template('index.tmpl')
+    htmltemplate=jinja2.Environment(loader=jinja2.FileSystemLoader("/var/dynr-web/templates",encoding='utf-8')).get_template('index.tmpl')
 except jinja2.exceptions.TemplateNotFound:
     print "ERROR: /var/dynr-web/templates/index.tmpl not found!"
     exit(1)
 for clientip in conf.clientips():
-    reactor.listenTCP(8765,DynamicRouterHttpFactory(conf,clientip,dbusclient,state,template),10,clientip)
+    reactor.listenTCP(8765,DynamicRouterHttpFactory(conf,clientip,dbusclient,state,htmltemplate),10,clientip)
 reactor.run()
