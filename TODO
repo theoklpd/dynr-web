@@ -1,5 +1,4 @@
 * Code review for the javascript App.
-* Create the serverside twisted stuff (python) (RM)
 * Code review for the python code.
 * ubuntu packaging. (RM)
 * Test package dependencies against clean ubuntu install. (RM)

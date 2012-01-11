@@ -11,6 +11,8 @@ import jinja2
 import dbus
 import gobject
 from dbus.mainloop.glib import DBusGMainLoop
+import daemon
+import syslog
 DBusGMainLoop(set_as_default=True)
 
 class DynamicRouterConfig:
@@ -75,23 +77,24 @@ class StateProxy:
                 self.routerstate.completeUpdate(self.clientip,self.gatewaynum,self.httpserverip)
             else:
                 #If the other request failed, than we are in a bad state, one request succeeded and the other failed.
-                self.routerstate.brokenUpdate(clientip,gatewaynum,httpserverip)
+                self.routerstate.brokenUpdate(self.clientip,self.gatewaynum,self.httpserverip)
     def _partialFailure(self):
         #If both requests completed than we need to forward something.
         if (self.dnscommandstate != None) and (self.routingcommandstate != None ):
             #Test if the other request succeeded
             if self.dnscommandstate or self.routingcommandstate:
                 #If the other request succeeded, than we are in a bad state, one request succeeded and the other failed.
-                self.routerstate.brokenUpdate(clientip,gatewaynum,httpserverip)
+                self.routerstate.brokenUpdate(self.clientip,self.gatewaynum,self.httpserverip)
             else:
                 #If both failed than we are still in the old state and we have just a failed request.
-                self.routerstate.failedUpdate(clientip,gatewaynum,httpserverip)
+                self.routerstate.failedUpdate(self.clientip,self.gatewaynum,self.httpserverip)
     def DnsSetResult(self,res):
         if res:
             #Positive DNS command result from dbus server.
             self.dnscommandstate=True
             self._partialSuccess()
         else:
+            syslog.syslog(syslog.LOG_ERR,"Dns set error (returned failure)")
             #Failure indication from dbus server.
             self.dnscommandstate=False
             self._partialFailure()
@@ -101,14 +104,17 @@ class StateProxy:
             self.routingcommandstate=True
             self._partialSuccess()
         else:
+            syslog.syslog(syslog.LOG_ERR,"Gateway set error (returned failure)")
             #Failure indication from dbus server.
             self.routingcommandstate=False
             self._partialFailure()
     def DnsSetError(self,err):
         #Failure with the dns dbus
+        syslog.syslog(syslog.LOG_ERR,"Dns set error (dbus failure)") 
         self.dnscommandstate=False
         self._partialFailure()
     def GatewaySetError(self,err):
+        syslog.syslog(syslog.LOG_ERR,"Gateway set error (dbus failure)") 
         #Failure with the PBR dbus 
         self.routingcommandstate=False
         self._partialFailure()
@@ -155,8 +161,15 @@ class DynamicRouterState:
             network[clientip]["futuregw"]={}
             network[clientip]["futuregw"][gatewaynum]=True
         #We already let this workstation count in the newly selected gateway, but also still in the old one.
-        self.gateways[gatewaynum][httpserverip] = self.gateways[gatewaynum][httpserverip] + 1
+        if self.gateways.has_key(gatewaynum):
+            if self.gateways[gatewaynum].has_key(httpserverip):
+                self.gateways[gatewaynum][httpserverip] = self.gateways[gatewaynum][httpserverip] + 1
+            else:
+                syslog.syslog(syslog.LOG_ERR,str(httpserverip) + " not defined in gateways. This should not happen.")
+        else:
+            syslog.syslog(syslog.LOG_ERR,str(gatewaynum)+" "+str(type(gatewaynum)) + "not in gateways. This should not happen.")
     def failedUpdate(self,clientip,gatewaynum,httpserverip):
+        syslog.syslog(syslog.LOG_ERR,"Update error (full failure: results in valid state)")
         #The update failed completely (both dns and routing).
         #First decrement the number of updates in progress.
         self.updatesinprogess[clientip] = self.updatesinprogess[clientip] -1
@@ -170,6 +183,7 @@ class DynamicRouterState:
         #Decrement the count for the failed prospective new gateway.
         self.gateways[gatewaynum][httpserverip] = self.gateways[gatewaynum][httpserverip] - 1
     def brokenUpdate(self,clientip,gatewaynum,httpserverip):
+        syslog.syslog(syslog.LOG_ERR,"Update error (partial failure: results in invalid state)")
         #The update failed partially, this is bad.
         #First decrement the number of updates in progress.
         self.updatesinprogess[clientip] = self.updatesinprogess[clientip] -1
@@ -294,7 +308,7 @@ class DbusClient:
             #Get a proxy object for updating the state based on the progresso of both active dbus calls.
             updstate=state.getStateProxy(clientip,gatewaynum,httpserverip)
             #Look ip the gateway IP by number.
-            gwip=self.gateways[gatewaynum]
+            gwip=self.gateways[str(gatewaynum)]
             #Start the asynchonous call to the routing dbus service.
             self.routing.setGateway(clientip,gwip,updstate)
             #Start the asynchonous call to the dns dbus service.
@@ -322,13 +336,15 @@ class DynamicRouterRequestHandler(http.Request):
                 self.write(self.html)
             #The dynamic ajaxy status stuff.
             elif self.path == "/routerstatus":
+                clientip=self.getClientIP()
+                serverip=self.getHost().host
                 self.setHeader('Content-Type', 'application/json')
-                self.write(self.state())
+                self.write(self.state(serverip,clientip))
             #Changing the current gateway for a given client ip.
             elif self.path == "/setgateway":
                 self.setHeader('Content-Type', 'text/html')
                 clientip=self.getClientIP()
-                gatewaynum = self.args["gw"][0]
+                gatewaynum = int(self.args["gw"][0])
                 self.dbusclient.setGateway(clientip,gatewaynum,self.state,self.getHost().host)
                 self.write("<h1>Request made</h1>")
             #Our static files (images and javascript.
@@ -376,17 +392,41 @@ class DynamicRouterHttpFactory(http.HTTPFactory):
     def buildProtocol(self, addr):
         return DynamicRouterHttp(self.html,self.state,self.dbusclient)
         
-
 if os.system("/usr/bin/pbr-checkconfig.py"):
-    sys.exit(1)
-conf=DynamicRouterConfig("/etc/pbrouting.json")
-dbusclient=DbusClient(conf.getGatewaysMap(),conf.getParkIp())
-state=DynamicRouterState(conf)
-try:
-    htmltemplate=jinja2.Environment(loader=jinja2.FileSystemLoader("/var/dynr-web/templates",encoding='utf-8')).get_template('index.tmpl')
-except jinja2.exceptions.TemplateNotFound:
-    print "ERROR: /var/dynr-web/templates/index.tmpl not found!"
     exit(1)
-for clientip in conf.clientips():
-    reactor.listenTCP(8765,DynamicRouterHttpFactory(conf,clientip,dbusclient,state,htmltemplate),10,clientip)
-reactor.run()
+with daemon.DaemonContext():
+    syslog.openlog()
+    syslog.syslog(syslog.LOG_NOTICE,'pbdns-web started')
+    try:
+        conf=DynamicRouterConfig("/etc/pbrouting.json")
+    except:
+        syslog.syslog(syslog.LOG_CRIT,"Problem loading config /etc/pbrouting.json: aborting.")
+        exit(1)    
+    try:
+        dbusclient=DbusClient(conf.getGatewaysMap(),conf.getParkIp())
+    except:
+        syslog.syslog(syslog.LOG_CRIT,"Problem binding to dbus: aborting.")
+        exit(1)
+    try:
+        state=DynamicRouterState(conf)
+    except:
+        syslog.syslog(syslog.LOG_CRIT,"Problem constructing DynamicRouterState. Aborting.")
+        exit(1)
+    try:
+        htmltemplate=jinja2.Environment(loader=jinja2.FileSystemLoader("/var/dynr-web/templates",encoding='utf-8')).get_template('index.tmpl')
+    except jinja2.exceptions.TemplateNotFound:
+        syslog.syslog(syslog.LOG_CRIT,"/var/dynr-web/templates/index.tmpl not found! : Aborting.")
+        exit(1)
+    for clientip in conf.clientips():
+        try:
+            reactor.listenTCP(80,DynamicRouterHttpFactory(conf,clientip,dbusclient,state,htmltemplate),10,clientip)
+        except:
+            syslog.syslog(syslog.LOG_CRIT,"Unable to bind to webserver port 80 on "+str(clientip))
+            exit(1)
+        syslog.syslog(syslog.LOG_CRIT,"Starting to listen on IP "+str(clientip))
+    try:
+        syslog.syslog(syslog.LOG_CRIT,"Starting twisted reactor.")
+        reactor.run()
+    except:
+        syslog.syslog(syslog.LOG_CRIT,"Problem running twisted reactor. Aborting.")
+        exit(1)
