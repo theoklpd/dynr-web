@@ -1,0 +1,3 @@
+#!/bin/bash
+echo Deleting user dynrweb
+/usr/sbin/userdel  dynrweb

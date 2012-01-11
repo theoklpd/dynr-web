@@ -1,0 +1,7 @@
+#!/bin/bash
+echo Creating new user dynrweb
+/usr/sbin/useradd -d / -r -c "Dynamic Router web frontend" -g pbdnsman dynrweb
+echo Giving dynrweb the right to bind to TCP port 80.
+chown dynrweb /etc/authbind/byport/80
+chmod 0700 /etc/authbind/byport/80
+

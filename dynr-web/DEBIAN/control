@@ -1,0 +1,14 @@
+Package: dynr-web
+Section: net
+Priority: extra
+Essential: no
+Version: 0.9.0-5
+Architecture: all
+Installed-Size: 16
+Depends: python-dbus,python-daemon,dbus,upstart,dynr-pbrouting,dynr-dns,authbind
+Conflicts: apache2
+Maintainer: Rob@KLPD <rob@dnpa.nl>
+Description: The web frontend for the dynr (dynamic router) system.
+ The dynr (dynamic router) is a simple web based gateway selection tool. 
+ This package provides the web frontend that allows the user to pick
+ a gateway pollicy and set dns forwarding apropriately.
