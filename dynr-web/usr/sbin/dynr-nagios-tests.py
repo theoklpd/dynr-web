@@ -40,7 +40,7 @@ def getIpList():
         exit(2)
     for device in conf["devices"]["clients"]:
         if not device.has_key("ip"):
-            print "CRITICAL: Config file has a 'devices::clients[]' withou the mandatory 'ip' defined for it."
+            print "CRITICAL: Config file has a 'devices::clients[]' without the mandatory 'ip' defined for it."
             exit(2) 
         yield device["ip"]
 
@@ -82,5 +82,5 @@ else:
         exit(1)
     else:
         print "CRITICAL: Dynamic router is partialy down. Active sub-systems : " , running , " ; Inactive subsystems : " , notrunning
-
+        exit(2)
 
