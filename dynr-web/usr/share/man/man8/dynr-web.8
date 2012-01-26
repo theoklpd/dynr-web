@@ -1,0 +1,47 @@
+.Dd Jan 26, 2012
+.Os LINUX
+.Dt DYNR-WEB  8 URM
+.Sh NAME
+dynr-web
+.Nd
+Dynr: Dynamic router web frontend.
+.Sh SYNOPSIS
+\fB dynr-web.py\fR
+
+.Sh DESCRIPTION
+
+A dynr dynamic router system is a router system that sits between a network with multiple 
+internet routers and a network with multiple workstations, and allows the people working
+on the workstations to pick and change lines according to their personal preferences and/or
+according to the need of the moment. A dynr consists out of several subsystems, the policy 
+based routing core (dynr-pbrouting), a web interface (dynr-web) and a dynamic policy based 
+dns proxy (dynr-dns). 
+
+The dynr-web frontend for the dynamic router consists of a HTTP daemon dynr-web.py and
+some client side javascript. 
+
+Just like the rest of the dynamic router system and the dns proxy subsystem, the frontend will 
+get its configuration from the  /etc/pbrouting.json configuration file. 
+
+At system startup, dynr-web will run the dynr-web.py script in order to start listening on the 
+different interfaces where clients might be found. The server-side of the front-end acts as
+a bridge between the client side javascript application and the dbus services provided by the
+dynr-pbrouting core routing subsystem and the dynr-pbdns dns proxying subsystem.
+
+.Sh ENVIRONMENT
+The dynr-web package depends on a system that uses both the dbus and the upstart system.
+It has been tested on ubuntu 10.4 and 11.4. If you are successfully running dynr-pbrouting on any
+other distribution or version, or are having problems running it on any such system, please notify
+the author.
+
+.Sh FILES
+/etc/pbrouting.json  
+.\" .Sh EXAMPLES
+.Sh SEE ALSO
+.PP
+\fBpbrouting.json\fR(5) \fBdynr-pbrouting\fR(8) \fBdynr-pbdns\fR(8) \fBdynr-nagios-test.py\fR(8) 
+.\" .Sh STANDARDS
+.Sh HISTORY
+This package is derived from the original (unpublished) dynrlite system.
+.Sh AUTHORS
+This manual page was written  by  Rob Meijer <rob@dnpa.nl>, for the GNU/Linux Ubuntu system

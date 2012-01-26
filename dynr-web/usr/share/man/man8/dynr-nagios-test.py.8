@@ -1,0 +1,34 @@
+.Dd Jan 26, 2012
+.Os LINUX
+.Dt DYNR-NAGIOS-TEST  8 URM
+.Sh NAME
+dynr-web
+.Nd
+Dynr: Dynamic router Nagios plugin.
+.Sh SYNOPSIS
+\fB dynr-nagios-test.py\fR
+
+.Sh DESCRIPTION
+
+A dynr dynamic router system is a router system that sits between a network with multiple 
+internet routers and a network with multiple workstations, and allows the people working
+on the workstations to pick and change lines according to their personal preferences and/or
+according to the need of the moment. A dynr consists out of several subsystems, the policy 
+based routing core (dynr-pbrouting), a web interface (dynr-web) and a dynamic policy based 
+dns proxy (dynr-dns). 
+
+The dynr-nagios-test.py is a simple python script meant for usage by a Nagios configuration
+as a plugin. It reads the /etc/pbrouting.json configuration file and establishes that the
+sub-systems that according to this configuration should be operational, indeed are.
+
+.Sh FILES
+/etc/pbrouting.json  
+.\" .Sh EXAMPLES
+.Sh SEE ALSO
+.PP
+\fBpbrouting.json\fR(5) \fBdynr-web\fR(8) \fBdynr-pbdns\fR(8) \fBdynr-pbrouting\fR(8) 
+.\" .Sh STANDARDS
+.Sh HISTORY
+This package is derived from the original (unpublished) dynrlite system.
+.Sh AUTHORS
+This manual page was written  by  Rob Meijer <rob@dnpa.nl>, for the GNU/Linux Ubuntu system
