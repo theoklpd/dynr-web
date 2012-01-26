@@ -13,7 +13,6 @@ import gobject
 from dbus.mainloop.glib import DBusGMainLoop
 import daemon
 import syslog
-DBusGMainLoop(set_as_default=True)
 
 class DynamicRouterConfig:
     def __init__(self,conffile):
@@ -70,6 +69,7 @@ class StateProxy:
         self.httpserverip=httpserverip
         self.routerstate.startUpdate(clientip,gatewaynum,httpserverip)
     def _partialSuccess(self):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: _partialSuccess.")        
         #If both requests completed than we need to forward something.
         if (self.dnscommandstate !=  None) and (self.routingcommandstate != None):
             #Test if both requests succeeded
@@ -79,6 +79,7 @@ class StateProxy:
                 #If the other request failed, than we are in a bad state, one request succeeded and the other failed.
                 self.routerstate.brokenUpdate(self.clientip,self.gatewaynum,self.httpserverip)
     def _partialFailure(self):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: _partialFailure.")        
         #If both requests completed than we need to forward something.
         if (self.dnscommandstate != None) and (self.routingcommandstate != None ):
             #Test if the other request succeeded
@@ -89,7 +90,9 @@ class StateProxy:
                 #If both failed than we are still in the old state and we have just a failed request.
                 self.routerstate.failedUpdate(self.clientip,self.gatewaynum,self.httpserverip)
     def DnsSetResult(self,res):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: DnsResult.")        
         if res:
+            syslog.syslog(syslog.LOG_ERR,"DEBUG: DNS=OK")        
             #Positive DNS command result from dbus server.
             self.dnscommandstate=True
             self._partialSuccess()
@@ -99,7 +102,9 @@ class StateProxy:
             self.dnscommandstate=False
             self._partialFailure()
     def GatewaySetResult(self,res):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: GatewayResult.")        
         if res:
+            syslog.syslog(syslog.LOG_ERR,"DEBUG: Gateway=OK.")        
             #Positive PBR command result from dbus server.
             self.routingcommandstate=True
             self._partialSuccess()
@@ -137,6 +142,7 @@ class DynamicRouterState:
     def getStateProxy(self,clientip,gatewaynum,httpserverip):
         return StateProxy(self,clientip,gatewaynum,httpserverip)
     def startUpdate(self,clientip,gatewaynum,httpserverip):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: startUpdate.")        
         #There can be more than one update in progress, lets count them.
         if self.updatesinprogess.has_key(clientip):
            self.updatesinprogess[clientip] = self.updatesinprogess[clientip] + 1
@@ -183,6 +189,7 @@ class DynamicRouterState:
         #Decrement the count for the failed prospective new gateway.
         self.gateways[gatewaynum][httpserverip] = self.gateways[gatewaynum][httpserverip] - 1
     def brokenUpdate(self,clientip,gatewaynum,httpserverip):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: brokenUpdate.")        
         syslog.syslog(syslog.LOG_ERR,"Update error (partial failure: results in invalid state)")
         #The update failed partially, this is bad.
         #First decrement the number of updates in progress.
@@ -205,6 +212,7 @@ class DynamicRouterState:
         #Decrement the count for the failed prospective new gateway.
         self.gateways[gatewaynum][httpserverip] = self.gateways[gatewaynum][httpserverip] - 1
     def completeUpdate(self,clientip,gatewaynum,httpserverip):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: completeUpdate.")        
         #The update completed succesfully.
         #First decrement the number of updates in progress.
         self.updatesinprogess[clientip] = self.updatesinprogess[clientip] -1
@@ -224,6 +232,7 @@ class DynamicRouterState:
         #Set the current gateway
         network[clientip]["gateway"] = gatewaynum
     def __call__(self,httpserverip,clientip):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: Fetching router state as json")        
         network=self.networks[httpserverip]
         if network.has_key(clientip):
             wsinfo=network[clientip]
@@ -271,13 +280,16 @@ class DynRDnsDbusClient:
         self.parkip=parkip
         self.remote_object = bus.get_object("nl.dnpa.pbdns.DaemonManager","/DaemonManager")
     def setGateway(self,clientip,gatewayip,updstate):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: setGateway called for dns.")        
         if gatewayip ==  self.parkip:
+            syslog.syslog(syslog.LOG_ERR,"DEBUG: setGateway called for parkip.")        
             #Invoke clear asynchonously, letting the proxy state object handle the result.
             return self.remote_object.clear(clientip,
                 dbus_interface = "nl.dnpa.pbdns.DaemonManager",
                 reply_handler=updstate.DnsSetResult,
                 error_handler=updstate.DnsSetError)
         else :
+            syslog.syslog(syslog.LOG_ERR,"DEBUG: setGateway called for normal gateway")        
             #Invoke clear asynchonously, letting the proxy state object handle the result.
             return self.remote_object.setGateway(clientip,gatewayip,
                 dbus_interface = "nl.dnpa.pbdns.DaemonManager",
@@ -289,6 +301,7 @@ class DynRPbrDbusClient:
     def __init__(self,bus):
         self.remote_object = bus.get_object("nl.dnpa.pbr.GatewayManager","/GatewayManager")
     def setGateway(self,clientip,gatewayip,updstate):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: setGateway called for pbr.")        
         #Invoke setGateway asynchonously, letting the proxy state object handle the result.
         return self.remote_object.setGateway(clientip,gatewayip,
             dbus_interface = "nl.dnpa.pbr.GatewayManager",
@@ -303,8 +316,10 @@ class DbusClient:
         self.routing = DynRDnsDbusClient(bus,parkip)
         self.dns = DynRPbrDbusClient(bus)
     def setGateway(self,clientip,gatewaynum,state,httpserverip):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: setGateway called.")        
         #Only allow setGateway to work on allowed gateways as defined in the config.
         if self.gateways.has_key(str(gatewaynum)):
+            syslog.syslog(syslog.LOG_ERR,"DEBUG:   On valid gateway number.")
             #Get a proxy object for updating the state based on the progresso of both active dbus calls.
             updstate=state.getStateProxy(clientip,gatewaynum,httpserverip)
             #Look ip the gateway IP by number.
@@ -327,9 +342,11 @@ class DynamicRouterRequestHandler(http.Request):
             "/favicon.ico" : "images"}
         http.Request.__init__(self,*args)
     def process(self):
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: http request received.")        
         needredirect=False
         #Normaly the client should be addressed by its IP.
         if self.getRequestHostname() == self.getHost().host:
+            syslog.syslog(syslog.LOG_ERR,"DEBUG: by ip")
             #Our main application page generated at startup time.
             if self.path == "/gatewaylist":
                 self.setHeader('Content-Type', 'text/html')
@@ -366,6 +383,8 @@ class DynamicRouterRequestHandler(http.Request):
             self.redirect("http://" + str(host) + ":" + str(port) + "/gatewaylist")
         self.finish()
         self.unregisterProducer()
+        syslog.syslog(syslog.LOG_ERR,"DEBUG: http request handled.")        
+
 
 class DynamicRouterHttp(http.HTTPChannel):
     requestFactory = DynamicRouterRequestHandler
@@ -394,14 +413,18 @@ class DynamicRouterHttpFactory(http.HTTPFactory):
         
 if os.system("/usr/bin/pbr-checkconfig.py"):
     exit(1)
-with daemon.DaemonContext():
-    syslog.openlog()
-    syslog.syslog(syslog.LOG_NOTICE,'pbdns-web started')
+syslog.openlog("dynr-web.py")
+syslog.syslog(syslog.LOG_NOTICE,"pbdns-web started")
+#with daemon.DaemonContext():
+if True:
+    DBusGMainLoop(set_as_default=True)
+    syslog.openlog("dynr-web.py")
+    syslog.syslog(syslog.LOG_NOTICE,'Running as daemon')
     try:
         conf=DynamicRouterConfig("/etc/pbrouting.json")
     except:
         syslog.syslog(syslog.LOG_CRIT,"Problem loading config /etc/pbrouting.json: aborting.")
-        exit(1)    
+        exit(1)
     try:
         dbusclient=DbusClient(conf.getGatewaysMap(),conf.getParkIp())
     except:

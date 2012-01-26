@@ -5,7 +5,7 @@ Essential: no
 Version: 0.9.0-5
 Architecture: all
 Installed-Size: 16
-Depends: python-dbus,python-daemon,python-jinja2,dbus,upstart,dynr-pbrouting,dynr-dns,authbind
+Depends: python-dbus,python-daemon,dbus,upstart,dynr-pbrouting,dynr-dns,authbind
 Conflicts: httpd
 Replaces: httpd
 Provides: httpd

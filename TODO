@@ -1,4 +1,3 @@
-* Integration testing with dynr-bbrouting and dynr-pbdns on virtualbox environment (RM)
 * Code review for the javascript App.
 * Code review for the python code.
 * Test package dependencies against clean ubuntu install. (RM)
